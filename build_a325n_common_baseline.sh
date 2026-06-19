@@ -23,8 +23,8 @@ make -C "$PWD" O="$PWD/out" clean -j$(nproc)
 make -C "$PWD" O="$PWD/out" mrproper -j$(nproc)
 cat "$CFGDIR/mt6768_slm_defconfig" "$CFGDIR/a32.config" "$CFGDIR/battery.config" "$CFGDIR/ksu-a325n-common.config" > "$CFGDIR/compiled_defconfig"
 cat >> "$CFGDIR/compiled_defconfig" <<'EOF'
-# CONFIG_ALWAYS_ENFORCE is not set
-CONFIG_ALWAYS_PERMISSIVE=y
+CONFIG_ALWAYS_ENFORCE=y
+# CONFIG_ALWAYS_PERMISSIVE is not set
 CONFIG_MTK_GPU_VERSION="mali bifrost r25p0"
 EOF
 make -C "$PWD" O="$PWD/out" -j$(nproc) compiled_defconfig
