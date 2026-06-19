@@ -2095,7 +2095,9 @@ int do_execve(struct filename *filename,
 	struct user_arg_ptr argv = { .ptr.native = __argv };
 	struct user_arg_ptr envp = { .ptr.native = __envp };
 #ifdef CONFIG_KSU
-	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
+	int ksu_exec_fd = AT_FDCWD;
+	int ksu_exec_flags = 0;
+	ksu_handle_execveat(&ksu_exec_fd, &filename, &argv, &envp, &ksu_exec_flags);
 #endif
 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
 }
@@ -2125,7 +2127,9 @@ static int compat_do_execve(struct filename *filename,
 		.ptr.compat = __envp,
 	};
 #ifdef CONFIG_KSU // 32-bit ksud and 32-on-64 support
-	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
+	int ksu_exec_fd = AT_FDCWD;
+	int ksu_exec_flags = 0;
+	ksu_handle_execveat(&ksu_exec_fd, &filename, &argv, &envp, &ksu_exec_flags);
 #endif	
 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
 }
