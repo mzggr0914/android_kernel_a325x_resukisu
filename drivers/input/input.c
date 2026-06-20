@@ -26,6 +26,10 @@
 #include <linux/poll.h>
 #include <linux/device.h>
 #include <linux/mutex.h>
+
+#ifdef CONFIG_KSU
+extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
+#endif
 #include <linux/rcupdate.h>
 #include "input-compat.h"
 
@@ -379,6 +383,10 @@ static int input_get_disposition(struct input_dev *dev,
 static void input_handle_event(struct input_dev *dev,
 			       unsigned int type, unsigned int code, int value)
 {
+#ifdef CONFIG_KSU
+	if (ksu_handle_input_handle_event(&type, &code, &value))
+		return;
+#endif
 	int disposition = input_get_disposition(dev, type, code, &value);
 
 	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)

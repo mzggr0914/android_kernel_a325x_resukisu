@@ -30,6 +30,10 @@
  * found on the VFS inode structure.  This is the default if no getattr inode
  * operation is supplied.
  */
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+extern void susfs_sus_kstat_spoof_generic_fillattr(struct inode *inode, struct kstat *stat);
+#endif
+
 void generic_fillattr(struct inode *inode, struct kstat *stat)
 {
 	stat->dev = inode->i_sb->s_dev;
@@ -45,6 +49,9 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
 	stat->ctime = inode->i_ctime;
 	stat->blksize = i_blocksize(inode);
 	stat->blocks = inode->i_blocks;
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	susfs_sus_kstat_spoof_generic_fillattr(inode, stat);
+#endif
 
 	if (IS_NOATIME(inode))
 		stat->result_mask &= ~STATX_ATIME;
@@ -76,8 +83,18 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
 	request_mask &= STATX_ALL;
 	query_flags &= KSTAT_QUERY_FLAGS;
 	if (inode->i_op->getattr)
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	{
+		int err = inode->i_op->getattr(path, stat, request_mask,
+					    query_flags);
+		if (!err)
+			susfs_sus_kstat_spoof_generic_fillattr(inode, stat);
+		return err;
+	}
+#else
 		return inode->i_op->getattr(path, stat, request_mask,
 					    query_flags);
+#endif
 
 	generic_fillattr(inode, stat);
 	return 0;
@@ -372,22 +389,20 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 	return cp_new_stat(&stat, statbuf);
 }
 #endif
-#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_KSUD)
-extern void ksu_handle_newfstat_ret(unsigned int *fd, struct stat __user **statbuf_ptr);
-#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
-extern void ksu_handle_fstat64_ret(unsigned long *fd, struct stat64 __user **statbuf_ptr); // for 32-bit
-#endif
+#ifdef CONFIG_KSU_SUSFS
+extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
 #endif
 SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
 {
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
 
-	if (!error)
-		error = cp_new_stat(&stat, statbuf);
-#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_KSUD)
-	ksu_handle_newfstat_ret(&fd, &statbuf);
+	if (!error) {
+#ifdef CONFIG_KSU_SUSFS
+		ksu_handle_vfs_fstat(fd, &stat.size);
 #endif
+		error = cp_new_stat(&stat, statbuf);
+	}
 	return error;
 }
 
@@ -505,11 +520,12 @@ SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
 
-	if (!error)
-		error = cp_new_stat64(&stat, statbuf);
-#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_KSUD) // for 32-bit
-	ksu_handle_fstat64_ret(&fd, &statbuf);
+	if (!error) {
+#ifdef CONFIG_KSU_SUSFS
+		ksu_handle_vfs_fstat((int)fd, &stat.size);
 #endif
+		error = cp_new_stat64(&stat, statbuf);
+	}
 	return error;
 }
 
