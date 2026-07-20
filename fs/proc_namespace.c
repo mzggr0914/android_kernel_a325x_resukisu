@@ -23,7 +23,28 @@
 
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 extern struct static_key_false susfs_is_hide_sus_mnts_for_non_su_procs_enabled;
-extern bool susfs_is_current_ksu_domain(void);
+
+static bool susfs_should_filter_mountinfo(void)
+{
+	return static_branch_unlikely(
+		&susfs_is_hide_sus_mnts_for_non_su_procs_enabled) &&
+		!susfs_is_current_ksu_domain();
+}
+
+static bool susfs_peer_group_is_visible(struct mnt_namespace *ns,
+					int group_id)
+{
+	struct mount *mnt;
+
+	list_for_each_entry(mnt, &ns->list, mnt_list) {
+		if (mnt->mnt_id >= DEFAULT_KSU_MNT_ID)
+			continue;
+		if (IS_MNT_SHARED(mnt) && mnt->mnt_group_id == group_id)
+			return true;
+	}
+
+	return false;
+}
 #endif
 
 static unsigned mounts_poll(struct file *file, poll_table *wait)
@@ -189,9 +210,28 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
 	if (IS_MNT_SLAVE(r)) {
 		int master = r->mnt_master->mnt_group_id;
 		int dom = get_dominating_id(r, &p->root);
-		seq_printf(m, " master:%i", master);
-		if (dom && dom != master)
-			seq_printf(m, " propagate_from:%i", dom);
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+		bool show_master = true;
+
+		/*
+		 * A filtered mountinfo view must not expose a propagation
+		 * reference whose peer group has no visible shared mount.
+		 * Native userspace treats such an orphan master:X as a mount
+		 * peer gap.  Keep the real propagation topology unchanged and
+		 * only make the filtered proc view self-consistent.
+		 */
+		if (susfs_should_filter_mountinfo() &&
+		    !susfs_peer_group_is_visible(p->ns, master))
+			show_master = false;
+
+		if (show_master) {
+#endif
+			seq_printf(m, " master:%i", master);
+			if (dom && dom != master)
+				seq_printf(m, " propagate_from:%i", dom);
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+		}
+#endif
 	}
 	if (IS_MNT_UNBINDABLE(r))
 		seq_puts(m, " unbindable");
