@@ -139,7 +139,7 @@ static ssize_t macaddr_store(
 {
 	int32_t i4Ret = 0;
 
-	i4Ret = sscanf(buf, "%18s", (uint8_t *)&aucMacAddrOverride);
+	i4Ret = sscanf(buf, "%17s", (uint8_t *)&aucMacAddrOverride);
 
 	if (!i4Ret)
 		DBGLOG(INIT, ERROR, "sscanf mac format fail u4Ret=%d\n", i4Ret);
