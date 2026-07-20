@@ -2016,5 +2016,4 @@ void __init mtk_cpuidle_framework_init(void)
 	mtk_idle_set_clkmux_addr();
 	mtk_idle_profile_init();
 }
-EXPORT_SYMBOL(mtk_cpuidle_framework_init);
 
