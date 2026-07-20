@@ -25,7 +25,6 @@
 #include "fuse/fuse_i.h"
 #include "mount.h"
 
-extern bool susfs_is_current_ksu_domain(void);
 extern void setup_selinux(const char *domain, struct cred *cred);
 extern struct cred *ksu_cred;
 

@@ -1409,6 +1409,9 @@ struct task_struct {
 	/* Used by LSM modules for access restriction: */
 	void				*security;
 #endif
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	int				susfs_last_fake_mnt_id;
+#endif
 #ifdef CONFIG_MTK_TASK_TURBO
 	unsigned short turbo:1;
 	unsigned short render:1;

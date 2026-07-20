@@ -31,6 +31,15 @@ struct mountpoint {
 	int m_count;
 };
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+enum susfs_mnt_id_owner {
+	SUSFS_MNT_ID_NORMAL,
+	SUSFS_MNT_ID_SUS_IDA,
+	SUSFS_MNT_ID_REUSED,
+	SUSFS_MNT_ID_VISIBLE,
+};
+#endif
+
 struct mount {
 	struct hlist_node mnt_hash;
 	struct mount *mnt_parent;
@@ -70,6 +79,10 @@ struct mount {
 #endif
 	int mnt_id;			/* mount identifier */
 	int mnt_group_id;		/* peer group identifier */
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	int susfs_mnt_id_backup;
+	enum susfs_mnt_id_owner susfs_mnt_id_owner;
+#endif
 	int mnt_expiry_mark;		/* true if marked for expiry */
 	struct hlist_head mnt_pins;
 	struct fs_pin mnt_umount;
