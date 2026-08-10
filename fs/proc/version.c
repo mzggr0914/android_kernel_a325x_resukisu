@@ -8,10 +8,7 @@
 
 static int version_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, linux_proc_banner,
-		utsname()->sysname,
-		utsname()->release,
-		utsname()->version);
+	seq_printf(m, "Linux version 4.14.186-27270957 (dpi@SWDM8601) (Android (6443078 based on r383902) clang version 11.0.1 (https://android.googlesource.com/toolchain/llvm-project b397f81060ce6d701042b782172ed13bee898b79), LLD 11.0.1 (/buildbot/tmp/tmp6_m7QH b397f81060ce6d701042b782172ed13bee898b79)) #1 SMP PREEMPT Mon Jan 6 09:04:47 KST 2025\n");
 	return 0;
 }
 
