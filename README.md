@@ -21,7 +21,7 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 ## Features
 
 - ReSukiSU `v4.1.0`
-- ReSukiSU kernel version code `35018`
+- ReSukiSU kernel version code `35056`
 - SUSFS `v2.2.0`
 - KernelSU multi-manager support
 - KProbes-based KernelSU integration
