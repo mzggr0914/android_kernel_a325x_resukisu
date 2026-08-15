@@ -8,6 +8,15 @@
 #include <linux/cred.h>
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#define d_in_lookup(dentry) (0)
+#define d_lookup_done(dentry) do {} while (0)
+#endif // to support 4.4 and older kernel
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#define GFP_KERNEL_ACCOUNT GFP_KERNEL
+#endif // to support 4.4 and older kernel
+
 /********/
 /* ENUM */
 /********/
