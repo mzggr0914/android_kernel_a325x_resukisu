@@ -255,6 +255,7 @@ void susfs_set_hide_sus_mnts_for_non_su_procs(void __user **user_info) {
 	} else {
 		static_branch_disable(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled);
 	}
+
 	SUSFS_LOGI("susfs_is_hide_sus_mnts_for_non_su_procs_enabled: %d\n", static_key_enabled(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled));
 	info.err = 0;
 out_copy_to_user:
@@ -1472,9 +1473,9 @@ struct work_struct susfs_extra_works;
 static void susfs_run_extra_works(struct work_struct *work) {
 	if (!ksu_cred)
 		return;
-	#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	susfs_run_sus_path_loop();
-	#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 }
 
 /* susfs_init */
