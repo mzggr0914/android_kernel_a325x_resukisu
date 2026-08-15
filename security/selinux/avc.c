@@ -187,10 +187,6 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
 	int rc;
 	char *scontext;
 	u32 scontext_len;
-#ifdef CONFIG_KSU_SUSFS
-	struct selinux_audit_data sad;
-#endif
-
 	rc = security_sid_to_context(state, ssid, &scontext, &scontext_len);
 	if (rc)
 		audit_log_format(ab, "ssid=%d", ssid);
@@ -203,7 +199,7 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
 
 #ifdef CONFIG_KSU_SUSFS
 	if (static_branch_likely(&susfs_is_avc_log_spoofing_enabled)) {
-		if (unlikely(sad.tsid == susfs_ksu_sid)) {
+		if (unlikely(tsid == susfs_ksu_sid)) {
 			if (rc)
 				audit_log_format(ab, " tsid=%d", susfs_priv_app_sid);
 			else
