@@ -131,15 +131,6 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
 	struct super_block *sb = mnt_path.dentry->d_sb;
 	int err;
 
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (static_branch_unlikely(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled) &&
-		r->mnt_id >= DEFAULT_KSU_MNT_ID &&
-		!susfs_is_current_ksu_domain())
-	{
-		return 0;
-	}
-#endif
-
 	if (sb->s_op->show_devname) {
 		err = sb->s_op->show_devname(m, mnt_path.dentry);
 		if (err)
@@ -176,15 +167,6 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
 	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
 	int err;
 
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (static_branch_unlikely(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled) &&
-		r->mnt_id >= DEFAULT_KSU_MNT_ID &&
-		!susfs_is_current_ksu_domain())
-	{
-		return 0;
-	}
-#endif
-
 	seq_printf(m, "%i %i %u:%u ", r->mnt_id, r->mnt_parent->mnt_id,
 		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
 	if (sb->s_op->show_path) {
@@ -210,28 +192,9 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
 	if (IS_MNT_SLAVE(r)) {
 		int master = r->mnt_master->mnt_group_id;
 		int dom = get_dominating_id(r, &p->root);
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-		bool show_master = true;
-
-		/*
-		 * A filtered mountinfo view must not expose a propagation
-		 * reference whose peer group has no visible shared mount.
-		 * Native userspace treats such an orphan master:X as a mount
-		 * peer gap.  Keep the real propagation topology unchanged and
-		 * only make the filtered proc view self-consistent.
-		 */
-		if (susfs_should_filter_mountinfo() &&
-		    !susfs_peer_group_is_visible(p->ns, master))
-			show_master = false;
-
-		if (show_master) {
-#endif
-			seq_printf(m, " master:%i", master);
-			if (dom && dom != master)
-				seq_printf(m, " propagate_from:%i", dom);
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-		}
-#endif
+		seq_printf(m, " master:%i", master);
+		if (dom && dom != master)
+			seq_printf(m, " propagate_from:%i", dom);
 	}
 	if (IS_MNT_UNBINDABLE(r))
 		seq_puts(m, " unbindable");
@@ -267,15 +230,6 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
 	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
 	struct super_block *sb = mnt_path.dentry->d_sb;
 	int err;
-
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	if (static_branch_unlikely(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled) &&
-		r->mnt_id >= DEFAULT_KSU_MNT_ID &&
-		!susfs_is_current_ksu_domain())
-	{
-		return 0;
-	}
-#endif
 
 	/* device */
 	if (sb->s_op->show_devname) {
@@ -313,6 +267,167 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
 out:
 	return err;
 }
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+static int susfs_show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
+{
+	struct proc_mounts *p = m->private;
+	struct mount *r = real_mount(mnt);
+	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
+	struct super_block *sb = mnt_path.dentry->d_sb;
+	int err;
+
+	if (r->mnt_id >= DEFAULT_KSU_MNT_ID)
+		return 0;
+
+	if (sb->s_op->show_devname) {
+		err = sb->s_op->show_devname(m, mnt_path.dentry);
+		if (err)
+			goto out;
+	} else {
+		mangle(m, r->mnt_devname ? r->mnt_devname : "none");
+	}
+	seq_putc(m, ' ');
+	/* mountpoints outside of chroot jail will give SEQ_SKIP on this */
+	err = seq_path_root(m, &mnt_path, &p->root, " \t\n\\");
+	if (err)
+		goto out;
+	seq_putc(m, ' ');
+	show_type(m, sb);
+	seq_puts(m, __mnt_is_readonly(mnt) ? " ro" : " rw");
+	err = show_sb_opts(m, sb);
+	if (err)
+		goto out;
+	show_mnt_opts(m, mnt);
+	if (sb->s_op->show_options2)
+			err = sb->s_op->show_options2(mnt, m, mnt_path.dentry);
+	else if (sb->s_op->show_options)
+		err = sb->s_op->show_options(m, mnt_path.dentry);
+	seq_puts(m, " 0 0\n");
+out:
+	return err;
+}
+
+static int susfs_show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
+{
+	struct proc_mounts *p = m->private;
+	struct mount *r = real_mount(mnt);
+	struct super_block *sb = mnt->mnt_sb;
+	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
+	int err;
+
+	if (r->mnt_id >= DEFAULT_KSU_MNT_ID)
+		return 0;
+
+	seq_printf(m, "%i %i %u:%u ", r->mnt_id, r->mnt_parent->mnt_id,
+		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
+	if (sb->s_op->show_path) {
+		err = sb->s_op->show_path(m, mnt->mnt_root);
+		if (err)
+			goto out;
+	} else {
+		seq_dentry(m, mnt->mnt_root, " \t\n\\");
+	}
+	seq_putc(m, ' ');
+
+	/* mountpoints outside of chroot jail will give SEQ_SKIP on this */
+	err = seq_path_root(m, &mnt_path, &p->root, " \t\n\\");
+	if (err)
+		goto out;
+
+	seq_puts(m, mnt->mnt_flags & MNT_READONLY ? " ro" : " rw");
+	show_mnt_opts(m, mnt);
+
+	/* Tagged fields ("foo:X" or "bar") */
+	if (IS_MNT_SHARED(r))
+		seq_printf(m, " shared:%i", r->mnt_group_id);
+	if (IS_MNT_SLAVE(r)) {
+		int master = r->mnt_master->mnt_group_id;
+		int dom = get_dominating_id(r, &p->root);
+
+		/* Do not expose propagation references to hidden peer groups. */
+		if (susfs_peer_group_is_visible(p->ns, master)) {
+			seq_printf(m, " master:%i", master);
+			if (dom && dom != master)
+				seq_printf(m, " propagate_from:%i", dom);
+		}
+	}
+	if (IS_MNT_UNBINDABLE(r))
+		seq_puts(m, " unbindable");
+
+	/* Filesystem specific data */
+	seq_puts(m, " - ");
+	show_type(m, sb);
+	seq_putc(m, ' ');
+	if (sb->s_op->show_devname) {
+		err = sb->s_op->show_devname(m, mnt->mnt_root);
+		if (err)
+			goto out;
+	} else {
+		mangle(m, r->mnt_devname ? r->mnt_devname : "none");
+	}
+	seq_puts(m, sb_rdonly(sb) ? " ro" : " rw");
+	err = show_sb_opts(m, sb);
+	if (err)
+		goto out;
+	if (sb->s_op->show_options2) {
+		err = sb->s_op->show_options2(mnt, m, mnt->mnt_root);
+	} else if (sb->s_op->show_options)
+		err = sb->s_op->show_options(m, mnt->mnt_root);
+	seq_putc(m, '\n');
+out:
+	return err;
+}
+
+static int susfs_show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
+{
+	struct proc_mounts *p = m->private;
+	struct mount *r = real_mount(mnt);
+	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
+	struct super_block *sb = mnt_path.dentry->d_sb;
+	int err;
+
+	if (r->mnt_id >= DEFAULT_KSU_MNT_ID)
+		return 0;
+
+	/* device */
+	if (sb->s_op->show_devname) {
+		seq_puts(m, "device ");
+		err = sb->s_op->show_devname(m, mnt_path.dentry);
+		if (err)
+			goto out;
+	} else {
+		if (r->mnt_devname) {
+			seq_puts(m, "device ");
+			mangle(m, r->mnt_devname);
+		} else
+			seq_puts(m, "no device");
+	}
+
+	/* mount point */
+	seq_puts(m, " mounted on ");
+	/* mountpoints outside of chroot jail will give SEQ_SKIP on this */
+	err = seq_path_root(m, &mnt_path, &p->root, " \t\n\\");
+	if (err)
+		goto out;
+	seq_putc(m, ' ');
+
+	/* file system type */
+	seq_puts(m, "with fstype ");
+	show_type(m, sb);
+
+	/* optional statistics */
+	if (sb->s_op->show_stats) {
+		seq_putc(m, ' ');
+		err = sb->s_op->show_stats(m, mnt_path.dentry);
+	}
+
+	seq_putc(m, '\n');
+out:
+	return err;
+}
+
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 static int mounts_open_common(struct inode *inode, struct file *file,
 			      int (*show)(struct seq_file *, struct vfsmount *))
@@ -381,16 +496,28 @@ static int mounts_release(struct inode *inode, struct file *file)
 
 static int mounts_open(struct inode *inode, struct file *file)
 {
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (susfs_should_filter_mountinfo())
+		return mounts_open_common(inode, file, susfs_show_vfsmnt);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 	return mounts_open_common(inode, file, show_vfsmnt);
 }
 
 static int mountinfo_open(struct inode *inode, struct file *file)
 {
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (susfs_should_filter_mountinfo())
+		return mounts_open_common(inode, file, susfs_show_mountinfo);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 	return mounts_open_common(inode, file, show_mountinfo);
 }
 
 static int mountstats_open(struct inode *inode, struct file *file)
 {
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (susfs_should_filter_mountinfo())
+		return mounts_open_common(inode, file, susfs_show_vfsstat);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 	return mounts_open_common(inode, file, show_vfsstat);
 }
 
