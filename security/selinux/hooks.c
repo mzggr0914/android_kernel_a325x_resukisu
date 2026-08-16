@@ -7098,6 +7098,9 @@ static __init int selinux_init(void)
 
 	memset(&selinux_state, 0, sizeof(selinux_state));
 	enforcing_set(&selinux_state, selinux_enforcing_boot);
+	pr_info("SELinuxDBG: init enforcing state=%d legacy=%d boot=%d\n",
+		enforcing_enabled(&selinux_state), READ_ONCE(selinux_enforcing),
+		selinux_enforcing_boot);
 	selinux_state.checkreqprot = selinux_checkreqprot_boot;
 	selinux_ss_init(&selinux_state.ss);
 	selinux_avc_init(&selinux_state.avc);
