@@ -768,7 +768,7 @@ out:
 	selinux_enforcing = 1;
 #endif
 #endif
-	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+	if (!enforcing_enabled(state)) // use the backported selinux_state
 		return 0;
 // ] SEC_SELINUX_PORTING_COMMON					   
 	return -EPERM;
@@ -1677,7 +1677,7 @@ out:
 	selinux_enforcing = 1;
 #endif
 #endif
-	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+	if (!enforcing_enabled(state)) // use the backported selinux_state
 		return 0;
 // ] SEC_SELINUX_PORTING_COMMON				   
 	return -EACCES;
@@ -1984,7 +1984,7 @@ static inline int convert_context_handle_invalid_context(
 	selinux_enforcing = 1;
 #endif
 #endif
-	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP
+	if (!enforcing_enabled(state)) // use the backported selinux_state
 		return -EINVAL;
 // ] SEC_SELINUX_PORTING_COMMON					   
 

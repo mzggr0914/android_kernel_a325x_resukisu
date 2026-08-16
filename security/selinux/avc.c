@@ -1112,7 +1112,7 @@ static noinline int avc_denied(struct selinux_state *state,
 				    enforcing_enabled(state), READ_ONCE(selinux_enforcing),
 				    ssid, tsid, tclass, requested, avd->flags);
 
-	if (selinux_enforcing &&				 
+	if (enforcing_enabled(state) &&
 	    !(avd->flags & AVD_FLAGS_PERMISSIVE))
 		return -EACCES;
 
