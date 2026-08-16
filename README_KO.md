@@ -20,12 +20,13 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 
 ## 주요 기능
 
-- ReSukiSU `v4.1.0`
-- ReSukiSU 커널 버전 코드 `35071`
+- ReSukiSU `v4.2.0-rc1`
+- ReSukiSU 커널 버전 코드 `35072`
 - SUSFS `v2.2.0`
 - KernelSU 멀티 매니저 지원
 - KProbes 기반 KernelSU 통합
 - SELinux Enforcing
+- NoMount `v1.1.1` 지원
 - SUSFS 마운트 숨김
 - SUSFS 경로 숨김
 - SUSFS kstat 위조
