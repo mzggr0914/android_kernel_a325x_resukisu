@@ -762,13 +762,9 @@ out:
 
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
-#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
-	enforcing_set(NULL, 1);
-#else
-	selinux_enforcing = 1;
+	enforcing_set(state, true);
 #endif
-#endif
-	if (!enforcing_enabled(state)) // use the backported selinux_state
+	if (!enforcing_enabled(state))
 		return 0;
 // ] SEC_SELINUX_PORTING_COMMON					   
 	return -EPERM;
@@ -1671,13 +1667,9 @@ out:
 	kfree(n);
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
-#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
-	enforcing_set(NULL, 1);
-#else
-	selinux_enforcing = 1;
+	enforcing_set(state, true);
 #endif
-#endif
-	if (!enforcing_enabled(state)) // use the backported selinux_state
+	if (!enforcing_enabled(state))
 		return 0;
 // ] SEC_SELINUX_PORTING_COMMON				   
 	return -EACCES;
@@ -1978,13 +1970,9 @@ static inline int convert_context_handle_invalid_context(
 
 // [ SEC_SELINUX_PORTING_COMMON 
 #ifdef CONFIG_ALWAYS_ENFORCE
-#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
-	enforcing_set(NULL, 1);
-#else
-	selinux_enforcing = 1;
+	enforcing_set(state, true);
 #endif
-#endif
-	if (!enforcing_enabled(state)) // use the backported selinux_state
+	if (!enforcing_enabled(state))
 		return -EINVAL;
 // ] SEC_SELINUX_PORTING_COMMON					   
 
