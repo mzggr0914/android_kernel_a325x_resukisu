@@ -158,10 +158,25 @@ jobs:
               ;;
           esac
 
-          clang_bin="$(find "$unpack" -type f -path '*/bin/clang' -print -quit)"
+          echo "Looking for clang entry after extraction..."
+          clang_bin="$(find "$unpack" -path '*/bin/clang' -print -quit)"
+
           if [ -z "$clang_bin" ]; then
             echo "::error::Could not find bin/clang after extracting $asset_name."
-            find "$unpack" -maxdepth 4 -type f | head -100
+            echo "Top-level extracted entries:"
+            find "$unpack" -maxdepth 3 -print | sed -n '1,120p'
+            echo "Clang-like entries:"
+            find "$unpack" -maxdepth 5 \( -name 'clang' -o -name 'clang-*' \) -print | sed -n '1,120p'
+            exit 1
+          fi
+
+          echo "Found clang entry: $clang_bin"
+          ls -l "$clang_bin"
+
+          # bin/clang may be a symlink (common in Android clang toolchains).
+          clang_real="$(readlink -f "$clang_bin")"
+          if [ ! -x "$clang_real" ]; then
+            echo "::error::Resolved clang is not executable: $clang_real"
             exit 1
           fi
 
@@ -171,7 +186,7 @@ jobs:
           echo "$toolchain/bin" >> "$GITHUB_PATH"
 
           echo "Resolved toolchain: $toolchain"
-          "$clang_bin" --version | head -n 2
+          "$clang_real" --version | head -n 2
           "$toolchain/bin/ld.lld" --version | head -n 1
 
       - name: Clone AnyKernel3
