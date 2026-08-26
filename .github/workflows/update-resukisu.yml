@@ -1,0 +1,113 @@
+name: Update ReSukiSU
+
+on:
+  schedule:
+    # 00:17, 06:17, 12:17, 18:17 UTC
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish a kernel Release after updating ReSukiSU'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: resukisu-auto-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update ReSukiSU submodule
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout common
+        uses: actions/checkout@v7
+        with:
+          ref: common
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Check ReSukiSU main
+        id: ksu
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current="$(git -C KernelSU rev-parse HEAD)"
+          git -C KernelSU fetch origin main --tags --force
+          latest="$(git -C KernelSU rev-parse origin/main)"
+
+          echo "Current: $current"
+          echo "Latest : $latest"
+
+          if [ "$current" = "$latest" ]; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "ReSukiSU is already current."
+            exit 0
+          fi
+
+          git -C KernelSU checkout --detach "$latest"
+
+          short="$(git -C KernelSU rev-parse --short=8 HEAD)"
+          desc="$(git -C KernelSU describe --tags --always)"
+          base_tag="$(git -C KernelSU describe --tags --abbrev=0 2>/dev/null || echo resukisu)"
+          count="$(git -C KernelSU rev-list --count HEAD)"
+          code="$((30700 + count))"
+          release_tag="${base_tag}-${code}"
+
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "desc=$desc" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+          echo "New ReSukiSU: $desc"
+          echo "Version code: $code"
+          echo "Kernel release tag: $release_tag"
+
+      - name: Commit submodule update
+        if: steps.ksu.outputs.updated == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add KernelSU
+          git diff --cached --submodule=short
+
+          git commit -m "kernelsu: update ReSukiSU to ${{ steps.ksu.outputs.short }}"
+          git push origin HEAD:common
+
+      - name: Trigger kernel build and publish
+        if: steps.ksu.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.ksu.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          publish=true
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            publish='${{ inputs.publish_release }}'
+          fi
+
+          echo "Dispatching kernel.yml on common"
+          echo "publish_release=$publish"
+          echo "release_tag=$RELEASE_TAG"
+
+          gh workflow run kernel.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref common \
+            -f publish_release="$publish" \
+            -f release_tag="$RELEASE_TAG"
