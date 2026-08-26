@@ -29,7 +29,8 @@ concurrency:
 env:
   OUT_DIR: ${{ github.workspace }}/out-ci
   PACKAGE_DIR: ${{ github.workspace }}/package-ci
-  TOOLCHAIN_URL: https://github.com/ZyCromerZ/Clang/releases/download/14.0.6-20260619-release/Clang-14.0.6-20260619.tar.gz
+  TOOLCHAIN_REPO: ZyCromerZ/Clang
+  TOOLCHAIN_RELEASE: 14.0.6-20260619-release
   ANYKERNEL_REPO: ${{ vars.ANYKERNEL_REPO }}
   ANYKERNEL_REF: ${{ vars.ANYKERNEL_REF }}
 
@@ -62,7 +63,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Pinned toolchain: $TOOLCHAIN_URL"
           if [ -z "$ANYKERNEL_REPO" ]; then
             echo '::error::Repository variable ANYKERNEL_REPO is not set.'
             exit 1
@@ -75,40 +75,80 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ca-certificates curl file flex git \
-            libelf-dev libssl-dev libncurses-dev lz4 python3 unzip xz-utils zip zlib1g-dev
+            libelf-dev libssl-dev libncurses-dev jq lz4 python3 unzip xz-utils zip zlib1g-dev zstd
 
       - name: Download ZyC toolchain
         id: toolchain
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          archive="$RUNNER_TEMP/Clang-14.0.6-20260619.tar.gz"
-          unpack="$RUNNER_TEMP/zyc-clang-14.0.6-20260619"
+
+          release_json="$RUNNER_TEMP/zyc-release.json"
+          unpack="$RUNNER_TEMP/zyc-clang"
           rm -rf "$unpack"
           mkdir -p "$unpack"
 
-          echo "Downloading: $TOOLCHAIN_URL"
-          curl --fail --location \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            "$TOOLCHAIN_URL" -o "$archive"
+          api="https://api.github.com/repos/${TOOLCHAIN_REPO}/releases/tags/${TOOLCHAIN_RELEASE}"
+          echo "Resolving ZyC release assets: ${TOOLCHAIN_REPO}@${TOOLCHAIN_RELEASE}"
 
-          echo "Downloaded toolchain archive:"
-          ls -lh "$archive"
-          file "$archive"
+          # Try authenticated API first, then public API as a fallback.
+          if ! curl --fail --location --silent --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              "$api" -o "$release_json"; then
+            echo "::warning::Authenticated release lookup failed; retrying without auth."
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              -H "Accept: application/vnd.github+json" \
+              "$api" -o "$release_json"
+          fi
 
-          if tar -tf "$archive" >/dev/null 2>&1; then
-            tar --no-same-owner -xf "$archive" -C "$unpack"
-          elif unzip -tq "$archive" >/dev/null 2>&1; then
-            unzip -q "$archive" -d "$unpack"
-          else
-            echo '::error::Downloaded toolchain is neither a tar archive nor a ZIP archive.'
+          echo "Release assets:"
+          jq -r '.assets[] | "  \(.name)  \(.size) bytes"' "$release_json"
+
+          asset_name="$(
+            jq -r '
+              [.assets[]
+               | select(.name | test("\.(tar\.gz|tgz|tar\.xz|txz|tar\.zst|tzst|zip)$"; "i"))]
+              | sort_by(.size) | reverse | .[0].name // empty
+            ' "$release_json"
+          )"
+          asset_url="$(
+            jq -r --arg name "$asset_name" \
+              '.assets[] | select(.name == $name) | .browser_download_url' \
+              "$release_json"
+          )"
+
+          if [ -z "$asset_name" ] || [ -z "$asset_url" ]; then
+            echo "::error::No toolchain archive asset found in ZyC release."
             exit 1
           fi
 
+          archive="$RUNNER_TEMP/$asset_name"
+          echo "Downloading asset: $asset_name"
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            "$asset_url" -o "$archive"
+
+          ls -lh "$archive"
+          file "$archive"
+
+          case "$asset_name" in
+            *.zip)
+              unzip -q "$archive" -d "$unpack"
+              ;;
+            *.tar.zst|*.tzst)
+              tar --zstd --no-same-owner -xf "$archive" -C "$unpack"
+              ;;
+            *)
+              tar --no-same-owner -xf "$archive" -C "$unpack"
+              ;;
+          esac
+
           clang_bin="$(find "$unpack" -type f -path '*/bin/clang' -print -quit)"
           if [ -z "$clang_bin" ]; then
-            echo '::error::Could not find bin/clang after extracting the ZyC toolchain.'
-            find "$unpack" -maxdepth 3 -type f | head -100
+            echo "::error::Could not find bin/clang after extracting $asset_name."
+            find "$unpack" -maxdepth 4 -type f | head -100
             exit 1
           fi
 
@@ -120,7 +160,6 @@ jobs:
           echo "Resolved toolchain: $toolchain"
           "$clang_bin" --version | head -n 2
           "$toolchain/bin/ld.lld" --version | head -n 1
-          command -v aarch64-linux-gnu-as || true
 
       - name: Clone AnyKernel3
         shell: bash
@@ -209,7 +248,7 @@ jobs:
           ReSukiSU describe: $ksu_desc
           ReSukiSU version code: $ksu_code
           SUSFS: $susfs
-          Toolchain URL: $TOOLCHAIN_URL
+          Toolchain release: $TOOLCHAIN_REPO@$TOOLCHAIN_RELEASE
           Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           EOF
 
