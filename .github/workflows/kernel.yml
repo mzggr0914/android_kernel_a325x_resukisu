@@ -110,8 +110,18 @@ jobs:
           asset_name="$(
             jq -r '
               [.assets[]
-               | select(.name | test("\.(tar\.gz|tgz|tar\.xz|txz|tar\.zst|tzst|zip)$"; "i"))]
-              | sort_by(.size) | reverse | .[0].name // empty
+               | select(
+                   (.name | ascii_downcase | endswith(".tar.gz")) or
+                   (.name | ascii_downcase | endswith(".tgz")) or
+                   (.name | ascii_downcase | endswith(".tar.xz")) or
+                   (.name | ascii_downcase | endswith(".txz")) or
+                   (.name | ascii_downcase | endswith(".tar.zst")) or
+                   (.name | ascii_downcase | endswith(".tzst")) or
+                   (.name | ascii_downcase | endswith(".zip"))
+                 )]
+              | sort_by(.size)
+              | reverse
+              | .[0].name // empty
             ' "$release_json"
           )"
           asset_url="$(
@@ -124,6 +134,9 @@ jobs:
             echo "::error::No toolchain archive asset found in ZyC release."
             exit 1
           fi
+
+          echo "Selected toolchain asset: $asset_name"
+          echo "Asset URL resolved successfully."
 
           archive="$RUNNER_TEMP/$asset_name"
           echo "Downloading asset: $asset_name"
