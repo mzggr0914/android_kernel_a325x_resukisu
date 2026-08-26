@@ -28,7 +28,7 @@ concurrency:
 
 env:
   OUT_DIR: ${{ github.workspace }}/out-ci
-  PACKAGE_DIR: ${{ runner.temp }}/a325n-package
+  PACKAGE_DIR: ${{ github.workspace }}/package-ci
   TOOLCHAIN_URL: ${{ vars.TOOLCHAIN_URL }}
   ANYKERNEL_REPO: ${{ vars.ANYKERNEL_REPO }}
   ANYKERNEL_REF: ${{ vars.ANYKERNEL_REF }}
