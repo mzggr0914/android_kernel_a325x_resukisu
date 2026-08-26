@@ -1,0 +1,283 @@
+name: A325N Kernel
+
+on:
+  push:
+    branches:
+      - common
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish the build as a GitHub Release'
+        required: false
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag for manual publish (example: v4.2.0-35072)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a325n-kernel-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OUT_DIR: ${{ github.workspace }}/out-ci
+  PACKAGE_DIR: ${{ runner.temp }}/a325n-package
+  TOOLCHAIN_URL: ${{ vars.TOOLCHAIN_URL }}
+  ANYKERNEL_REPO: ${{ vars.ANYKERNEL_REPO }}
+  ANYKERNEL_REF: ${{ vars.ANYKERNEL_REF }}
+
+jobs:
+  build:
+    name: Build A325N kernel
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout kernel and submodules
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Restore full submodule history and tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule foreach --recursive '
+            if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+              git fetch --unshallow --tags --force
+            else
+              git fetch --tags --force
+            fi
+          '
+
+      - name: Check required repository variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$TOOLCHAIN_URL" ]; then
+            echo '::error::Repository variable TOOLCHAIN_URL is not set.'
+            exit 1
+          fi
+          if [ -z "$ANYKERNEL_REPO" ]; then
+            echo '::error::Repository variable ANYKERNEL_REPO is not set.'
+            exit 1
+          fi
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ca-certificates curl file flex git \
+            libelf-dev libssl-dev libncurses-dev lz4 python3 unzip xz-utils zip zlib1g-dev
+
+      - name: Download ZyC toolchain
+        id: toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/toolchain.archive"
+          unpack="$RUNNER_TEMP/toolchain-unpack"
+          mkdir -p "$unpack"
+
+          curl --fail --location --retry 3 --retry-delay 2 \
+            "$TOOLCHAIN_URL" -o "$archive"
+
+          mime="$(file -b --mime-type "$archive")"
+          case "$mime" in
+            application/zip)
+              unzip -q "$archive" -d "$unpack"
+              ;;
+            *)
+              tar -xf "$archive" -C "$unpack"
+              ;;
+          esac
+
+          clang_bin="$(find "$unpack" -type f -path '*/bin/clang' -print -quit)"
+          if [ -z "$clang_bin" ]; then
+            echo '::error::Could not find bin/clang in the downloaded toolchain archive.'
+            exit 1
+          fi
+
+          toolchain="$(dirname "$(dirname "$clang_bin")")"
+          echo "TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+          "$clang_bin" --version | head -n 2
+
+      - name: Clone AnyKernel3
+        shell: bash
+        run: |
+          set -euo pipefail
+          ak3="$RUNNER_TEMP/AnyKernel3"
+          if [ -n "$ANYKERNEL_REF" ]; then
+            git clone --depth 1 --branch "$ANYKERNEL_REF" "$ANYKERNEL_REPO" "$ak3"
+          else
+            git clone --depth 1 "$ANYKERNEL_REPO" "$ak3"
+          fi
+          echo "AK3_DIR=$ak3" >> "$GITHUB_ENV"
+
+      - name: Show build metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Kernel commit : $(git rev-parse HEAD)"
+          echo "Kernel branch : ${GITHUB_REF_NAME}"
+          echo "ReSukiSU SHA  : $(git -C KernelSU rev-parse HEAD)"
+          echo "ReSukiSU desc : $(git -C KernelSU describe --tags --always --dirty)"
+          echo "Disk before build:"
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
+      - name: Build kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./build_a325n.sh ./package_anykernel.sh
+          TOOLCHAIN="$TOOLCHAIN" \
+          OUT_DIR="$OUT_DIR" \
+          ./build_a325n.sh 2>&1 | tee "$RUNNER_TEMP/a325n-build.log"
+
+      - name: Verify kernel outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$OUT_DIR/arch/arm64/boot/Image"
+          test -s "$OUT_DIR/arch/arm64/boot/Image.gz"
+          grep -q '^CONFIG_NOMOUNT=y$' "$OUT_DIR/.config"
+          grep -q '^CONFIG_ALWAYS_ENFORCE=y$' "$OUT_DIR/.config"
+          cat "$OUT_DIR/include/config/kernel.release"
+          sha256sum \
+            "$OUT_DIR/arch/arm64/boot/Image" \
+            "$OUT_DIR/arch/arm64/boot/Image.gz"
+
+      - name: Package AnyKernel ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$PACKAGE_DIR"
+          mkdir -p "$PACKAGE_DIR"
+
+          TOOLCHAIN="$TOOLCHAIN" \
+          OUT_DIR="$OUT_DIR" \
+          AK3_DIR="$AK3_DIR" \
+          ZIP_OUT_DIR="$PACKAGE_DIR" \
+          ./package_anykernel.sh | tee "$RUNNER_TEMP/a325n-package.log"
+
+          zip_path="$(find "$PACKAGE_DIR" -maxdepth 1 -type f -name '*.zip' -print -quit)"
+          if [ -z "$zip_path" ] || [ ! -s "$zip_path" ]; then
+            echo '::error::Flashable ZIP was not created.'
+            exit 1
+          fi
+
+          kernel_sha="$(git rev-parse HEAD)"
+          kernel_short="$(git rev-parse --short=10 HEAD)"
+          ksu_sha="$(git -C KernelSU rev-parse HEAD)"
+          ksu_desc="$(git -C KernelSU describe --tags --always)"
+          ksu_count="$(git -C KernelSU rev-list --count HEAD)"
+          ksu_code="$((30700 + ksu_count))"
+          susfs="$(sed -n 's/^#define SUSFS_VERSION "\([^"]*\)"/\1/p' include/linux/susfs.h | head -n1)"
+          kernel_release="$(cat "$OUT_DIR/include/config/kernel.release")"
+
+          sha256sum "$zip_path" > "$PACKAGE_DIR/SHA256SUMS.txt"
+          sha256sum \
+            "$OUT_DIR/arch/arm64/boot/Image" \
+            "$OUT_DIR/arch/arm64/boot/Image.gz" \
+            >> "$PACKAGE_DIR/SHA256SUMS.txt"
+
+          cat > "$PACKAGE_DIR/build-info.txt" <<EOF
+          Kernel commit: $kernel_sha
+          Kernel short: $kernel_short
+          Kernel release: $kernel_release
+          ReSukiSU commit: $ksu_sha
+          ReSukiSU describe: $ksu_desc
+          ReSukiSU version code: $ksu_code
+          SUSFS: $susfs
+          Toolchain URL: $TOOLCHAIN_URL
+          Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          EOF
+
+          echo "ARTIFACT_NAME=A325N-ReSukiSU-$kernel_short" >> "$GITHUB_ENV"
+          echo "ZIP_NAME=$(basename "$zip_path")" >> "$GITHUB_ENV"
+
+          echo '--- build-info.txt ---'
+          cat "$PACKAGE_DIR/build-info.txt"
+          echo '--- SHA256SUMS.txt ---'
+          cat "$PACKAGE_DIR/SHA256SUMS.txt"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: |
+            ${{ env.PACKAGE_DIR }}/*.zip
+            ${{ env.PACKAGE_DIR }}/SHA256SUMS.txt
+            ${{ env.PACKAGE_DIR }}/build-info.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v7
+        with:
+          pattern: A325N-ReSukiSU-*
+          path: release
+          merge-multiple: true
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag='${{ inputs.release_tag }}'
+            if [ -z "$tag" ]; then
+              echo '::error::release_tag is required when publish_release is enabled manually.'
+              exit 1
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(release/*.zip release/SHA256SUMS.txt release/build-info.txt)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo '::error::No release assets found.'
+            exit 1
+          fi
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "A325N ReSukiSU $RELEASE_TAG" \
+              --generate-notes
+          fi
