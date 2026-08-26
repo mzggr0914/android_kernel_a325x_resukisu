@@ -29,7 +29,7 @@ concurrency:
 env:
   OUT_DIR: ${{ github.workspace }}/out-ci
   PACKAGE_DIR: ${{ github.workspace }}/package-ci
-  TOOLCHAIN_URL: ${{ vars.TOOLCHAIN_URL }}
+  TOOLCHAIN_URL: https://github.com/ZyCromerZ/Clang/releases/download/14.0.6-20260619-release/Clang-14.0.6-20260619.tar.gz
   ANYKERNEL_REPO: ${{ vars.ANYKERNEL_REPO }}
   ANYKERNEL_REF: ${{ vars.ANYKERNEL_REF }}
 
@@ -62,10 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "$TOOLCHAIN_URL" ]; then
-            echo '::error::Repository variable TOOLCHAIN_URL is not set.'
-            exit 1
-          fi
+          echo "Pinned toolchain: $TOOLCHAIN_URL"
           if [ -z "$ANYKERNEL_REPO" ]; then
             echo '::error::Repository variable ANYKERNEL_REPO is not set.'
             exit 1
@@ -85,33 +82,45 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          archive="$RUNNER_TEMP/toolchain.archive"
-          unpack="$RUNNER_TEMP/toolchain-unpack"
+          archive="$RUNNER_TEMP/Clang-14.0.6-20260619.tar.gz"
+          unpack="$RUNNER_TEMP/zyc-clang-14.0.6-20260619"
+          rm -rf "$unpack"
           mkdir -p "$unpack"
 
-          curl --fail --location --retry 3 --retry-delay 2 \
+          echo "Downloading: $TOOLCHAIN_URL"
+          curl --fail --location \
+            --retry 5 --retry-delay 2 --retry-all-errors \
             "$TOOLCHAIN_URL" -o "$archive"
 
-          mime="$(file -b --mime-type "$archive")"
-          case "$mime" in
-            application/zip)
-              unzip -q "$archive" -d "$unpack"
-              ;;
-            *)
-              tar -xf "$archive" -C "$unpack"
-              ;;
-          esac
+          echo "Downloaded toolchain archive:"
+          ls -lh "$archive"
+          file "$archive"
+
+          if tar -tf "$archive" >/dev/null 2>&1; then
+            tar --no-same-owner -xf "$archive" -C "$unpack"
+          elif unzip -tq "$archive" >/dev/null 2>&1; then
+            unzip -q "$archive" -d "$unpack"
+          else
+            echo '::error::Downloaded toolchain is neither a tar archive nor a ZIP archive.'
+            exit 1
+          fi
 
           clang_bin="$(find "$unpack" -type f -path '*/bin/clang' -print -quit)"
           if [ -z "$clang_bin" ]; then
-            echo '::error::Could not find bin/clang in the downloaded toolchain archive.'
+            echo '::error::Could not find bin/clang after extracting the ZyC toolchain.'
+            find "$unpack" -maxdepth 3 -type f | head -100
             exit 1
           fi
 
           toolchain="$(dirname "$(dirname "$clang_bin")")"
           echo "TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
           echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+          echo "$toolchain/bin" >> "$GITHUB_PATH"
+
+          echo "Resolved toolchain: $toolchain"
           "$clang_bin" --version | head -n 2
+          "$toolchain/bin/ld.lld" --version | head -n 1
+          command -v aarch64-linux-gnu-as || true
 
       - name: Clone AnyKernel3
         shell: bash
