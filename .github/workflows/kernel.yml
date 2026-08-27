@@ -75,7 +75,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ca-certificates curl file flex git \
-            libelf-dev libssl-dev libncurses-dev jq lz4 python3 unzip xz-utils zip zlib1g-dev zstd
+            libelf-dev libssl-dev libncurses-dev jq lz4 pahole python3 unzip xz-utils zip zlib1g-dev zstd
+
+          echo "pahole: $(command -v pahole)"
+          pahole --version
 
       - name: Download ZyC toolchain
         id: toolchain
