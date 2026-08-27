@@ -72,6 +72,8 @@ bool susfs_is_current_zygote_domain(void);
  */
  // thread_info->flags is unsigned long :D
 #define TIF_PROC_UMOUNTED 33
+#define TIF_PROC_NO_SU 34
+#define TIF_PROC_UMOUNTED_FOR_ZYGOTE_NEXT 35
 
 #define AS_FLAGS_SUS_PATH 33
 #define AS_FLAGS_SUS_MOUNT 34
@@ -157,6 +159,22 @@ static inline void susfs_set_current_proc_umounted(void) {
 	set_thread_flag(TIF_PROC_UMOUNTED);
 }
 
+static inline void susfs_clear_current_proc_umounted(void) {
+	clear_thread_flag(TIF_PROC_UMOUNTED);
+}
+
+static inline bool susfs_is_current_proc_umounted_for_zygote_next(void) {
+	return (likely(test_thread_flag(TIF_PROC_UMOUNTED_FOR_ZYGOTE_NEXT)));
+}
+
+static inline void susfs_set_current_proc_umounted_for_zygote_next(void) {
+	set_thread_flag(TIF_PROC_UMOUNTED_FOR_ZYGOTE_NEXT);
+}
+
+static inline void susfs_clear_current_proc_umounted_for_zygote_next(void) {
+	clear_thread_flag(TIF_PROC_UMOUNTED_FOR_ZYGOTE_NEXT);
+}
+
 static inline bool susfs_is_current_proc_umounted_app(void) {
 	return (likely(test_thread_flag(TIF_PROC_UMOUNTED)) &&
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
@@ -164,6 +182,18 @@ static inline bool susfs_is_current_proc_umounted_app(void) {
 #else
 			current_uid().val >= 10000);
 #endif
+}
+
+static inline bool susfs_is_current_proc_no_su(void) {
+	return (likely(test_thread_flag(TIF_PROC_NO_SU)));
+}
+
+static inline void susfs_set_current_proc_no_su(void) {
+	set_thread_flag(TIF_PROC_NO_SU);
+}
+
+static inline void susfs_clear_current_proc_no_su(void) {
+	clear_thread_flag(TIF_PROC_NO_SU);
 }
 
 #define SUSFS_IS_INODE_SUS_MAP(inode) \

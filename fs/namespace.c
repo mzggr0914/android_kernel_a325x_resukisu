@@ -1050,6 +1050,27 @@ struct mount *__lookup_mnt(struct vfsmount *mnt, struct dentry *dentry)
 	struct hlist_head *head = m_hash(mnt, dentry);
 	struct mount *p;
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	/*
+	 * zygote_next inherits init's mount namespace. Prefer the first
+	 * non-SUS mount at this mountpoint while that transition is active.
+	 */
+	if (susfs_is_current_proc_umounted_for_zygote_next()) {
+		hlist_for_each_entry_rcu(p, head, mnt_hash)
+#if defined(CONFIG_KDP_NS) || defined(CONFIG_RUSTUH_KDP_NS)
+			if (p->mnt_id < DEFAULT_KSU_MNT_ID &&
+			    p->mnt_parent->mnt == mnt &&
+			    p->mnt_mountpoint == dentry)
+#else
+			if (p->mnt_id < DEFAULT_KSU_MNT_ID &&
+			    &p->mnt_parent->mnt == mnt &&
+			    p->mnt_mountpoint == dentry)
+#endif
+				return p;
+		return NULL;
+	}
+#endif
+
 	hlist_for_each_entry_rcu(p, head, mnt_hash)
 #if defined(CONFIG_KDP_NS) || defined(CONFIG_RUSTUH_KDP_NS)
 		if (p->mnt_parent->mnt == mnt && p->mnt_mountpoint == dentry)
