@@ -20,13 +20,13 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 
 ## 주요 기능
 
-- ReSukiSU `v4.2.0-rc1`
-- ReSukiSU 커널 버전 코드 `35072`
+- ReSukiSU `v4.2.0-rc1-43-g83614d89`
+- ReSukiSU 커널 버전 코드 `35104`
 - SUSFS `v2.2.0`
 - KernelSU 멀티 매니저 지원
 - KProbes 기반 KernelSU 통합
 - SELinux Enforcing
-- NoMount `v1.1.1` 지원
+- NoMount `v2.0.0` 내장형 경로 리다이렉션 및 가상 파일 주입
 - SUSFS 마운트 숨김
 - SUSFS 경로 숨김
 - SUSFS kstat 위조
@@ -39,6 +39,8 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 - 마운트 peer group 필터링 수정
 - 릴리스 빌드에서 SUSFS 런타임 로그 비활성화
 - AnyKernel3 설치 패키지
+
+현재 ReSukiSU 35104와 NoMount v2.0.0 조합은 SM-A325N에서 실제 부팅 검증을 완료했습니다. ReSukiSU Manager의 정상 동작과 NoMount 동반 모듈 설치 후 NoMount 기능의 정상 동작도 실기기에서 확인했습니다.
 
 ## 중요 안내
 
@@ -151,7 +153,13 @@ arch/arm64/configs/a325n-release.config
 
 - [JackA1ltman/NonGKI_Kernel_Build_2nd](https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd)
 
-  Non-GKI SUSFS 패치의 상당 부분은 이 저장소를 기반으로 적용되었습니다. 이후 이 커널 트리에 맞는 추가 호환성 수정과 기기별 버그 수정이 적용되었습니다.
+  Non-GKI SUSFS 패치의 상당 부분은 이 저장소를 기반으로 적용되었습니다. NoMount 업데이트 과정에서도 구형/Non-GKI 커널 통합 방식을 참고했습니다. 이후 이 커널 트리에 맞는 추가 호환성 수정과 기기별 버그 수정이 적용되었습니다.
+
+### NoMount
+
+- [maxsteeel/nomount](https://github.com/maxsteeel/nomount)
+
+  NoMount는 별도의 파일시스템 마운트 없이 경로 리다이렉션과 가상 파일 주입 기능을 제공합니다. 이 커널에는 Linux 4.14 기기 트리에 맞춰 업스트림 NoMount v2.0.0 커널 구현이 built-in 서브시스템으로 통합되어 있습니다.
 
 ### AnyKernel3
 
@@ -167,6 +175,8 @@ Linux, Android, Samsung 커널, KernelSU, ReSukiSU, SUSFS 및 AnyKernel3의 모�
 
 - Samsung Galaxy A32 SM-A325 커널 트리를 위한 ReSukiSU 통합
 - Linux 4.14용 SUSFS v2.2.0 백포트
+- `faccessat` 및 stat 계열 조회를 위한 ReSukiSU SUSFS sucompat 런타임 처리 수정
+- 마운트 없는 경로 리다이렉션과 가상 파일 주입을 제공하는 NoMount v2.0.0 built-in 통합
 - Samsung 및 MediaTek 호환성 수정
 - Zygote 네임스페이스의 마운트 ID 정규화
 - 마운트 peer group 필터링 수정

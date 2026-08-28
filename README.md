@@ -20,13 +20,13 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 
 ## Features
 
-- ReSukiSU `v4.2.0-rc1`
-- ReSukiSU kernel version code `35072`
+- ReSukiSU `v4.2.0-rc1-43-g83614d89`
+- ReSukiSU kernel version code `35104`
 - SUSFS `v2.2.0`
 - KernelSU multi-manager support
 - KProbes-based KernelSU integration
 - SELinux enforcing
-- NoMount `v1.1.1` support
+- NoMount `v2.0.0` built-in path redirection and virtual file injection
 - SUSFS mount hiding
 - SUSFS path hiding
 - SUSFS kstat spoofing
@@ -39,6 +39,8 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 - Corrected mount peer-group filtering
 - SUSFS runtime logging disabled for release builds
 - AnyKernel3 installation package
+
+The current ReSukiSU 35104 and NoMount v2.0.0 combination has been boot-tested on the SM-A325N. ReSukiSU Manager operation and NoMount functionality with the companion module installed were also verified on-device.
 
 ## Important Notice
 
@@ -151,7 +153,13 @@ This project would not have been possible without the work of the following proj
 
 - [JackA1ltman/NonGKI_Kernel_Build_2nd](https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd)
 
-  A significant portion of the non-GKI SUSFS patch set was adapted from this repository. The patches were integrated into this kernel tree with additional compatibility changes and device-specific bug fixes.
+  A significant portion of the non-GKI SUSFS patch set was adapted from this repository. Its legacy/non-GKI integration approach was also used as a reference while updating NoMount. The patches were integrated into this kernel tree with additional compatibility changes and device-specific bug fixes.
+
+### NoMount
+
+- [maxsteeel/nomount](https://github.com/maxsteeel/nomount)
+
+  NoMount provides mountless path redirection and virtual file injection. This kernel includes the upstream NoMount v2.0.0 kernel implementation as a built-in subsystem for the Linux 4.14 device tree.
 
 ### AnyKernel3
 
@@ -167,6 +175,8 @@ This repository contains device-specific integration and compatibility work, inc
 
 - ReSukiSU integration for the Samsung Galaxy A32 SM-A325 kernel tree
 - SUSFS v2.2.0 backport for Linux 4.14
+- ReSukiSU SUSFS sucompat runtime handling for `faccessat` and stat-family lookups
+- NoMount v2.0.0 built-in integration with mountless path redirection and virtual file injection
 - Samsung and MediaTek compatibility adjustments
 - Mount ID normalization for zygote namespaces
 - Mount peer-group filtering fixes
