@@ -31,8 +31,8 @@ env:
   PACKAGE_DIR: ${{ github.workspace }}/package-ci
   TOOLCHAIN_REPO: ZyCromerZ/Clang
   TOOLCHAIN_RELEASE: 14.0.6-20260619-release
-  ANYKERNEL_REPO: ${{ vars.ANYKERNEL_REPO }}
-  ANYKERNEL_REF: ${{ vars.ANYKERNEL_REF }}
+  ANYKERNEL_REPO: https://github.com/osm0sis/AnyKernel3.git
+  ANYKERNEL_COMMIT: af770f7b16cf8f8eb7c68614b2a693b3b361c90c
 
 jobs:
   build:
@@ -58,15 +58,6 @@ jobs:
               git fetch --tags --force
             fi
           '
-
-      - name: Check required repository variables
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "$ANYKERNEL_REPO" ]; then
-            echo '::error::Repository variable ANYKERNEL_REPO is not set.'
-            exit 1
-          fi
 
       - name: Install build dependencies
         shell: bash
@@ -192,17 +183,27 @@ jobs:
           "$clang_real" --version | head -n 2
           "$toolchain/bin/ld.lld" --version | head -n 1
 
-      - name: Clone AnyKernel3
+      - name: Clone pinned upstream AnyKernel3
         shell: bash
         run: |
           set -euo pipefail
-          ak3="$RUNNER_TEMP/AnyKernel3"
-          if [ -n "$ANYKERNEL_REF" ]; then
-            git clone --depth 1 --branch "$ANYKERNEL_REF" "$ANYKERNEL_REPO" "$ak3"
-          else
-            git clone --depth 1 "$ANYKERNEL_REPO" "$ak3"
+
+          parent="$(mktemp -d "$RUNNER_TEMP/AnyKernel3-A325N.XXXXXX")"
+          ak3="$parent/repository"
+
+          git clone --filter=blob:none "$ANYKERNEL_REPO" "$ak3"
+          git -C "$ak3" checkout --detach "$ANYKERNEL_COMMIT"
+
+          resolved="$(git -C "$ak3" rev-parse HEAD)"
+          if [ "$resolved" != "$ANYKERNEL_COMMIT" ]; then
+            echo "::error::Unexpected AnyKernel3 commit: $resolved"
+            exit 1
           fi
+
+          test -s "$GITHUB_WORKSPACE/anykernel/a325n-anykernel.sh"
+
           echo "AK3_DIR=$ak3" >> "$GITHUB_ENV"
+          echo "ANYKERNEL_RESOLVED_COMMIT=$resolved" >> "$GITHUB_ENV"
 
       - name: Show build metadata
         shell: bash
@@ -212,6 +213,7 @@ jobs:
           echo "Kernel branch : ${GITHUB_REF_NAME}"
           echo "ReSukiSU SHA  : $(git -C KernelSU rev-parse HEAD)"
           echo "ReSukiSU desc : $(git -C KernelSU describe --tags --always --dirty)"
+          echo "AnyKernel SHA : $ANYKERNEL_RESOLVED_COMMIT"
           echo "Disk before build:"
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
 
@@ -247,6 +249,7 @@ jobs:
           TOOLCHAIN="$TOOLCHAIN" \
           OUT_DIR="$OUT_DIR" \
           AK3_DIR="$AK3_DIR" \
+          AK3_CONFIG="$GITHUB_WORKSPACE/anykernel/a325n-anykernel.sh" \
           ZIP_OUT_DIR="$PACKAGE_DIR" \
           ./package_anykernel.sh | tee "$RUNNER_TEMP/a325n-package.log"
 
@@ -255,6 +258,27 @@ jobs:
             echo '::error::Flashable ZIP was not created.'
             exit 1
           fi
+
+          unzip -tq "$zip_path"
+          packaged_anykernel="$RUNNER_TEMP/packaged-anykernel.sh"
+          unzip -p "$zip_path" anykernel.sh > "$packaged_anykernel"
+
+          grep -q '^device\.name1=a32$' "$packaged_anykernel" || {
+            echo '::error::A325N device configuration is missing from the ZIP.'
+            exit 1
+          }
+          grep -Eq '^BLOCK=/dev/block/by-name/boot;?$' "$packaged_anykernel" || {
+            echo '::error::A325N boot partition configuration is missing from the ZIP.'
+            exit 1
+          }
+          if grep -Eq 'maguro|toro|toroplus|tuna|omap_hsmmc' "$packaged_anykernel"; then
+            echo '::error::Stock Galaxy Nexus AnyKernel configuration was packaged.'
+            exit 1
+          fi
+
+          echo 'Packaged AnyKernel configuration:'
+          grep -E '^(kernel\.string|do\.devicecheck|device\.name[0-9]+|BLOCK)=' \
+            "$packaged_anykernel"
 
           kernel_sha="$(git rev-parse HEAD)"
           kernel_short="$(git rev-parse --short=10 HEAD)"
@@ -280,6 +304,7 @@ jobs:
           ReSukiSU version code: $ksu_code
           SUSFS: $susfs
           Toolchain release: $TOOLCHAIN_REPO@$TOOLCHAIN_RELEASE
+          AnyKernel upstream: $ANYKERNEL_REPO@$ANYKERNEL_RESOLVED_COMMIT
           Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           EOF
 
