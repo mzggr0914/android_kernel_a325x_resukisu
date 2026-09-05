@@ -22,7 +22,7 @@
 #include <linux/freezer.h>
 #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
 #include <linux/susfs_def.h>
-#endif // #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
+#endif
 
 #include <asm/elf.h>
 #include <asm/tlb.h>
@@ -426,8 +426,6 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 	 * Print the dentry name for named mappings, and a
 	 * special [heap] marker for the heap:
 	 */
-
-
 	if (file) {
 		seq_pad(m, ' ');
 		seq_file_path(m, file, "\n");
@@ -842,6 +840,11 @@ static void smap_gather_stats(struct vm_area_struct *vma,
 		.mm = vma->vm_mm,
 	};
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+	if (vma->vm_file && SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file)))
+		return;
+#endif
+
 	smaps_walk.private = mss;
 
 #ifdef CONFIG_SHMEM
@@ -922,11 +925,6 @@ static int show_smap(struct seq_file *m, void *v)
 	struct vm_area_struct *vma = v;
 	struct mem_size_stats mss;
 
-#ifdef CONFIG_KSU_SUSFS_SUS_MAP
-	if (vma->vm_file && SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file)))
-		return 0;
-#endif
-
 	memset(&mss, 0, sizeof(mss));
 
 	smap_gather_stats(vma, &mss);
@@ -937,7 +935,6 @@ static int show_smap(struct seq_file *m, void *v)
 		seq_print_vma_name(m, vma);
 		seq_putc(m, '\n');
 	}
-
 
 	seq_printf(m,
 		   "Size:           %8lu kB\n"

@@ -39,11 +39,11 @@
 #include <linux/bitops.h>
 #include <linux/init_task.h>
 #include <linux/uaccess.h>
-#if defined(CONFIG_KSU_SUSFS_SUS_PATH) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
-#include <linux/susfs_def.h>
-#endif
 #ifdef CONFIG_FSCRYPT_SDP
 #include <linux/fscrypto_sdp_name.h>
+#endif
+#if defined(CONFIG_KSU_SUSFS_SUS_PATH) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
+#include <linux/susfs_def.h>
 #endif
 #include "internal.h"
 #include "mount.h"
@@ -1714,7 +1714,7 @@ static struct dentry *lookup_real(struct inode *dir, struct dentry *dentry,
 }
 
 static struct dentry *__lookup_hash(const struct qstr *name,
-			struct dentry *base, unsigned int flags)
+		struct dentry *base, unsigned int flags)
 {
 	struct dentry *dentry = lookup_dcache(name, base, flags);
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
@@ -1745,6 +1745,10 @@ retry:
 			d_lookup_done(dentry);
 		if (!(flags & LOOKUP_RCU))
 			dput(dentry);
+		// - Just in case if an user app has been granted full file access and
+		//   it is trying to find the fuse sus path with the create flag, then
+		//   at least we can prevent the fake qstr file from from being created,
+		//   although it is futile to do this, it is better than doing nothing.
 		if (dentry->d_inode->i_sb->s_magic == FUSE_SUPER_MAGIC &&
 			(flags & (LOOKUP_CREATE | LOOKUP_EXCL)))
 			return ERR_PTR(-EACCES);
@@ -3806,8 +3810,8 @@ out_err:
 EXPORT_SYMBOL(vfs_tmpfile);
 
 static int do_tmpfile(struct nameidata *nd, unsigned flags,
-			const struct open_flags *op,
-			struct file *file, int *opened)
+		const struct open_flags *op,
+		struct file *file, int *opened)
 {
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 	int old_dfd = nd->dfd;
@@ -3846,6 +3850,7 @@ static int do_tmpfile(struct nameidata *nd, unsigned flags,
 	dput(path.dentry);
 	path.dentry = child;
 	audit_inode(nd->name, child, 0);
+	/* Don't check for other permissions, the inode was just created */
 	error = may_open(&path, 0, op->open_flag);
 	if (error)
 		goto out2;
@@ -3949,32 +3954,32 @@ static struct file *path_openat(struct nameidata *nd,
 		}
 	}
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
-	if (!error && old_dfd != -1 &&
-		SUSFS_IS_INODE_OPEN_REDIRECT_WITHOUT_UID_CHECK(nd->path.dentry->d_inode))
-	{
-		fake_filename = susfs_open_redirect_spoof_do_sys_openat(nd->path.dentry->d_inode);
-		if (fake_filename && !IS_ERR(fake_filename)) {
-			const char *new_s = NULL;
-			terminate_walk(nd);
-			restore_nameidata();
-			set_nameidata(nd, old_dfd, fake_filename);
-			new_s = path_init(nd, flags);
-			if (IS_ERR(new_s)) {
-				put_filp(file);
-				putname(fake_filename);
-				return ERR_CAST(new_s);
-			}
-			while (!(error = link_path_walk(new_s, nd)) &&
-				(error = do_last(nd, file, op, &opened)) > 0) {
-				nd->flags &= ~(LOOKUP_OPEN|LOOKUP_CREATE|LOOKUP_EXCL);
-				s = trailing_symlink(nd);
-				if (IS_ERR(s)) {
-					error = PTR_ERR(s);
-					break;
+		if (!error && old_dfd != -1 &&
+			SUSFS_IS_INODE_OPEN_REDIRECT_WITHOUT_UID_CHECK(nd->path.dentry->d_inode))
+		{
+			fake_filename = susfs_open_redirect_spoof_do_sys_openat(nd->path.dentry->d_inode);
+			if (fake_filename && !IS_ERR(fake_filename)) {
+				const char *new_s = NULL;
+				terminate_walk(nd);
+				restore_nameidata();
+				set_nameidata(nd, old_dfd, fake_filename);
+				new_s = path_init(nd, flags);
+				if (IS_ERR(new_s)) {
+					put_filp(file);
+					putname(fake_filename);
+					return ERR_CAST(new_s);
+				}
+				while (!(error = link_path_walk(new_s, nd)) &&
+					(error = do_last(nd, file, op, &opened)) > 0) {
+					nd->flags &= ~(LOOKUP_OPEN|LOOKUP_CREATE|LOOKUP_EXCL);
+					s = trailing_symlink(nd);
+					if (IS_ERR(s)) {
+						error = PTR_ERR(s);
+						break;
+					}
 				}
 			}
 		}
-	}
 #endif // #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 	terminate_walk(nd);
 out2:

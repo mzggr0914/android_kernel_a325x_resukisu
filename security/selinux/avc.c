@@ -187,6 +187,7 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
 	int rc;
 	char *scontext;
 	u32 scontext_len;
+
 	rc = security_sid_to_context(state, ssid, &scontext, &scontext_len);
 	if (rc)
 		audit_log_format(ab, "ssid=%d", ssid);

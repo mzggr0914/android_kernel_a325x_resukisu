@@ -26,10 +26,6 @@
 #include <linux/poll.h>
 #include <linux/device.h>
 #include <linux/mutex.h>
-
-#ifdef CONFIG_KSU
-extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
-#endif
 #include <linux/rcupdate.h>
 #include "input-compat.h"
 
@@ -380,14 +376,20 @@ static int input_get_disposition(struct input_dev *dev,
 	*pval = value;
 	return disposition;
 }
+#ifdef CONFIG_KSU
+extern struct static_key_true ksu_is_input_hook_enabled;
+extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
+#endif
+
 static void input_handle_event(struct input_dev *dev,
 			       unsigned int type, unsigned int code, int value)
 {
-#ifdef CONFIG_KSU
-	if (ksu_handle_input_handle_event(&type, &code, &value))
-		return;
-#endif
 	int disposition = input_get_disposition(dev, type, code, &value);
+#ifdef CONFIG_KSU_SUSFS
+	if (static_branch_unlikely(&ksu_is_input_hook_enabled))
+		ksu_handle_input_handle_event(&type, &code, &value);
+#endif
+
 
 	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
 		add_input_randomness(type, code, value);
