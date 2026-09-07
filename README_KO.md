@@ -20,9 +20,12 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 
 ## 주요 기능
 
+<!-- AUTO:RESUKISU:START -->
 - ReSukiSU `v4.2.0-rc1`
-- ReSukiSU 커널 버전 코드 `35115`
-- SUSFS `v2.2.0`
+- ReSukiSU 커널 버전 코드 `35119`
+- ReSukiSU 커밋 [`f1dd81dc`](https://github.com/ReSukiSU/ReSukiSU/commit/f1dd81dc96d7f3f6691e6ac8b50fba9ae8a2f17c)
+<!-- AUTO:RESUKISU:END -->
+- SUSFS `v2.3.0`
 - KernelSU 멀티 매니저 지원
 - KProbes 기반 KernelSU 통합
 - SELinux Enforcing
@@ -35,8 +38,6 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 - `/proc/kallsyms`에서 KernelSU 및 SUSFS 심볼 자동 숨김
 - SUSFS open redirect
 - SUSFS 메모리 맵 숨김
-- Zygote 네임스페이스의 마운트 ID 정규화
-- 마운트 peer group 필터링 수정
 - 릴리스 빌드에서 SUSFS 런타임 로그 비활성화
 - AnyKernel3 설치 패키지
 
@@ -149,7 +150,7 @@ arch/arm64/configs/a325n-release.config
 
 - [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu)
 
-  SUSFS와 원본 커널 패치는 Simonpunk가 개발하고 관리합니다. 이 커널에는 SUSFS v2.2.0을 기반으로 한 Linux 4.14 포팅이 포함되어 있습니다.
+  SUSFS와 원본 커널 패치는 Simonpunk가 개발하고 관리합니다. 이 커널에는 SUSFS v2.3.0을 기반으로 한 Linux 4.14 포팅이 포함되어 있습니다.
 
 - [JackA1ltman/NonGKI_Kernel_Build_2nd](https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd)
 
@@ -174,12 +175,10 @@ Linux, Android, Samsung 커널, KernelSU, ReSukiSU, SUSFS 및 AnyKernel3의 모�
 이 저장소에는 다음과 같은 기기별 통합 및 호환성 작업이 포함되어 있습니다.
 
 - Samsung Galaxy A32 SM-A325 커널 트리를 위한 ReSukiSU 통합
-- Linux 4.14용 SUSFS v2.2.0 백포트
+- Linux 4.14용 SUSFS v2.3.0 백포트
 - `faccessat` 및 stat 계열 조회를 위한 ReSukiSU SUSFS sucompat 런타임 처리 수정
 - 마운트 없는 경로 리다이렉션과 가상 파일 주입을 제공하는 NoMount v2.0.0 built-in 통합
 - Samsung 및 MediaTek 호환성 수정
-- Zygote 네임스페이스의 마운트 ID 정규화
-- 마운트 peer group 필터링 수정
 - `/proc/cmdline` 위조 안정성 수정
 - 구형 네트워크, 메모리 관리 및 커널 API 호환성 수정
 - 재현 가능한 SM-A325 빌드 설정

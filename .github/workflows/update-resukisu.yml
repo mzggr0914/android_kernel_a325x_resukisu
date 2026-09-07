@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   update:
-    name: Update ReSukiSU submodule
+    name: Update ReSukiSU submodule and README
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -48,13 +48,13 @@ jobs:
           echo "Current: $current"
           echo "Latest : $latest"
 
-          if [ "$current" = "$latest" ]; then
-            echo "updated=false" >> "$GITHUB_OUTPUT"
+          updated=false
+          if [ "$current" != "$latest" ]; then
+            git -C KernelSU checkout --detach "$latest"
+            updated=true
+          else
             echo "ReSukiSU is already current."
-            exit 0
           fi
-
-          git -C KernelSU checkout --detach "$latest"
 
           short="$(git -C KernelSU rev-parse --short=8 HEAD)"
           desc="$(git -C KernelSU describe --tags --always)"
@@ -63,18 +63,32 @@ jobs:
           code="$((30700 + count))"
           release_tag="${base_tag}-${code}"
 
-          echo "updated=true" >> "$GITHUB_OUTPUT"
+          echo "updated=$updated" >> "$GITHUB_OUTPUT"
           echo "short=$short" >> "$GITHUB_OUTPUT"
           echo "desc=$desc" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
-          echo "New ReSukiSU: $desc"
+          echo "ReSukiSU: $desc"
           echo "Version code: $code"
           echo "Kernel release tag: $release_tag"
 
-      - name: Commit submodule update
-        if: steps.ksu.outputs.updated == 'true'
+      - name: Sync README metadata
+        id: readme
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 scripts/update_readme_versions.py
+
+          changed=false
+          if ! git diff --quiet -- README.md README_KO.md; then
+            changed=true
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Commit submodule and README update
+        if: steps.ksu.outputs.updated == 'true' || steps.readme.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -82,10 +96,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add KernelSU
+          git add KernelSU README.md README_KO.md
           git diff --cached --submodule=short
 
-          git commit -m "kernelsu: update ReSukiSU to ${{ steps.ksu.outputs.short }}"
+          if [ "${{ steps.ksu.outputs.updated }}" = "true" ]; then
+            git commit -m "kernelsu: update ReSukiSU to ${{ steps.ksu.outputs.short }}"
+          else
+            git commit -m "docs: sync ReSukiSU README metadata"
+          fi
           git push origin HEAD:common
 
       - name: Trigger kernel build and publish

@@ -20,9 +20,12 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 
 ## Features
 
+<!-- AUTO:RESUKISU:START -->
 - ReSukiSU `v4.2.0-rc1`
-- ReSukiSU kernel version code `35115`
-- SUSFS `v2.2.0`
+- ReSukiSU kernel version code `35119`
+- ReSukiSU commit [`f1dd81dc`](https://github.com/ReSukiSU/ReSukiSU/commit/f1dd81dc96d7f3f6691e6ac8b50fba9ae8a2f17c)
+<!-- AUTO:RESUKISU:END -->
+- SUSFS `v2.3.0`
 - KernelSU multi-manager support
 - KProbes-based KernelSU integration
 - SELinux enforcing
@@ -35,8 +38,6 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 - Automatic hiding of KernelSU and SUSFS symbols from `/proc/kallsyms`
 - SUSFS open redirect
 - SUSFS memory map hiding
-- Normalized mount IDs for zygote namespaces
-- Corrected mount peer-group filtering
 - SUSFS runtime logging disabled for release builds
 - AnyKernel3 installation package
 
@@ -149,7 +150,7 @@ This project would not have been possible without the work of the following proj
 
 - [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu)
 
-  SUSFS and its original kernel patches are developed and maintained by Simonpunk. This kernel includes a Linux 4.14 port based on SUSFS v2.2.0.
+  SUSFS and its original kernel patches are developed and maintained by Simonpunk. This kernel includes a Linux 4.14 port based on SUSFS v2.3.0.
 
 - [JackA1ltman/NonGKI_Kernel_Build_2nd](https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd)
 
@@ -174,7 +175,7 @@ Special thanks to all upstream Linux, Android, Samsung kernel, KernelSU, ReSukiS
 This repository contains device-specific integration and compatibility work, including:
 
 - ReSukiSU integration for the Samsung Galaxy A32 SM-A325 kernel tree
-- SUSFS v2.2.0 backport for Linux 4.14
+- SUSFS v2.3.0 backport for Linux 4.14
 - ReSukiSU SUSFS sucompat runtime handling for `faccessat` and stat-family lookups
 - NoMount v2.0.0 built-in integration with mountless path redirection and virtual file injection
 - Samsung and MediaTek compatibility adjustments
