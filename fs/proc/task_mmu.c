@@ -2386,13 +2386,55 @@ show_filemap_vma(struct seq_file *m, struct vm_area_struct *vma)
 {
 	struct file *file = vma->vm_file;
 	struct proc_filemap_private *priv = m->private;
+	struct inode *inode;
 	char strbuf[MAX_PAGE_BOOST_FILEPATH_LEN];
 	char *pathname;
+
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+	char *spoofed_redirected_name = NULL;
+	unsigned long spoofed_ino = 0;
+	dev_t spoofed_dev = 0;
+	int srcu_idx;
+#endif
 
 	if (!file)
 		return;
 
-	pathname = d_path(&file->f_path, strbuf, MAX_PAGE_BOOST_FILEPATH_LEN);
+	inode = file_inode(file);
+
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+	if (SUSFS_IS_INODE_OPEN_REDIRECT(inode)) {
+		srcu_idx = srcu_read_lock(&susfs_srcu_open_redirect);
+
+		if (!susfs_open_redirect_spoof_show_map_vma_srcu(
+				inode,
+				&spoofed_ino,
+				&spoofed_dev,
+				&spoofed_redirected_name)) {
+			if (priv->show_list &&
+			    spoofed_redirected_name &&
+			    (!strncmp(spoofed_redirected_name, "/data", 5) ||
+			     !strncmp(spoofed_redirected_name, "/system", 7))) {
+				seq_puts(m, spoofed_redirected_name);
+				seq_putc(m, '\n');
+			}
+
+			srcu_read_unlock(&susfs_srcu_open_redirect,
+					 srcu_idx);
+			return;
+		}
+
+		srcu_read_unlock(&susfs_srcu_open_redirect, srcu_idx);
+	}
+#endif
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+	if (SUSFS_IS_INODE_SUS_MAP(inode))
+		return;
+#endif
+
+	pathname = d_path(&file->f_path, strbuf,
+			  MAX_PAGE_BOOST_FILEPATH_LEN);
 	if (IS_ERR(pathname))
 		return;
 
