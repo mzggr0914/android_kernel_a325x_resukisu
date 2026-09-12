@@ -27,7 +27,7 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 <!-- AUTO:RESUKISU:END -->
 - SUSFS `v2.3.0`
 - KernelSU 멀티 매니저 지원
-- KProbes 기반 KernelSU 통합
+- 이 Non-GKI Linux 4.14 트리를 위한 ReSukiSU SUSFS inline-hook 통합(KProbes/Kretprobes는 호환성을 위해 활성화)
 - SELinux Enforcing
 - NoMount `v2.0.0` 내장형 경로 리다이렉션 및 가상 파일 주입
 - SUSFS 마운트 숨김
@@ -41,7 +41,7 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 - 릴리스 빌드에서 SUSFS 런타임 로그 비활성화
 - AnyKernel3 설치 패키지
 
-현재 ReSukiSU 35104와 NoMount v2.0.0 조합은 SM-A325N에서 실제 부팅 검증을 완료했습니다. ReSukiSU Manager의 정상 동작과 NoMount 동반 모듈 설치 후 NoMount 기능의 정상 동작도 실기기에서 확인했습니다.
+ReSukiSU 35119는 현재 SM-A325N에서 마지막으로 실기기 부팅이 확인된 기준 버전입니다. 현재 ReSukiSU 35136 트리에는 최신 post-exec/SU-session 호환성 수정과 갱신된 SUSFS v2.3.0 Non-GKI 포트가 포함되어 있으며 빌드는 검증되었지만 최종 실기기 부팅 검증이 필요합니다. NoMount v2.0.0과 동반 모듈은 이전 실기기 테스트에서 정상 동작을 확인했습니다.
 
 ## 중요 안내
 
@@ -176,7 +176,9 @@ Linux, Android, Samsung 커널, KernelSU, ReSukiSU, SUSFS 및 AnyKernel3의 모�
 
 - Samsung Galaxy A32 SM-A325 커널 트리를 위한 ReSukiSU 통합
 - Linux 4.14용 SUSFS v2.3.0 백포트
-- `faccessat` 및 stat 계열 조회를 위한 ReSukiSU SUSFS sucompat 런타임 처리 수정
+- `execve`, post-exec SU session, `faccessat` 및 stat 계열 조회를 위한 ReSukiSU SUSFS sucompat 런타임 처리
+- 최신 Non-GKI 4.14 참고 패치를 기반으로 갱신한 SUSFS v2.3.0 kstat/statfs, inotify, proc-fd, mount hiding, open redirect 및 map spoofing 통합
+- post-exec 부트 멈춤, kstat 플래그 충돌, statfs spoof 반환 처리, readlink/open-redirect 의미론, mount reference 처리 및 SUSFS allocation failure 경로에 대한 A32 전용 버그 수정
 - 마운트 없는 경로 리다이렉션과 가상 파일 주입을 제공하는 NoMount v2.0.0 built-in 통합
 - Samsung 및 MediaTek 호환성 수정
 - `/proc/cmdline` 위조 안정성 수정

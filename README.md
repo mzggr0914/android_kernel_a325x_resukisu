@@ -27,7 +27,7 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 <!-- AUTO:RESUKISU:END -->
 - SUSFS `v2.3.0`
 - KernelSU multi-manager support
-- KProbes-based KernelSU integration
+- ReSukiSU SUSFS inline-hook integration for this non-GKI Linux 4.14 tree (KProbes/Kretprobes remain enabled for compatibility)
 - SELinux enforcing
 - NoMount `v2.0.0` built-in path redirection and virtual file injection
 - SUSFS mount hiding
@@ -41,7 +41,7 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 - SUSFS runtime logging disabled for release builds
 - AnyKernel3 installation package
 
-The current ReSukiSU 35104 and NoMount v2.0.0 combination has been boot-tested on the SM-A325N. ReSukiSU Manager operation and NoMount functionality with the companion module installed were also verified on-device.
+ReSukiSU 35119 is the last on-device boot-tested baseline on the SM-A325N. The current ReSukiSU 35136 tree includes the newer post-exec/SU-session compatibility fixes and the refreshed SUSFS v2.3.0 non-GKI port; it has been build-verified and still requires final on-device boot validation. NoMount v2.0.0 and its companion module were previously verified on-device.
 
 ## Important Notice
 
@@ -176,7 +176,9 @@ This repository contains device-specific integration and compatibility work, inc
 
 - ReSukiSU integration for the Samsung Galaxy A32 SM-A325 kernel tree
 - SUSFS v2.3.0 backport for Linux 4.14
-- ReSukiSU SUSFS sucompat runtime handling for `faccessat` and stat-family lookups
+- ReSukiSU SUSFS sucompat runtime handling for `execve`, post-exec SU sessions, `faccessat`, and stat-family lookups
+- Refreshed SUSFS v2.3.0 kstat/statfs, inotify, proc-fd, mount-hiding, open-redirect, and map-spoofing integration based on the current non-GKI 4.14 reference patches
+- A32-specific fixes for post-exec boot hangs, kstat flag collisions, statfs spoof return handling, readlink/open-redirect semantics, mount reference handling, and SUSFS allocation failure paths
 - NoMount v2.0.0 built-in integration with mountless path redirection and virtual file injection
 - Samsung and MediaTek compatibility adjustments
 - Mount ID normalization for zygote namespaces

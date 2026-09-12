@@ -1747,8 +1747,10 @@ static int do_proc_readlink(struct path *path, char __user *buffer, int buflen)
 
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 	if (SUSFS_IS_INODE_OPEN_REDIRECT(path->dentry->d_inode)) {
-		if (!susfs_open_redirect_spoof_do_proc_readlink(path->dentry->d_inode, tmp, buflen)) {
+		if (!susfs_open_redirect_spoof_do_proc_readlink(path->dentry->d_inode, tmp, PAGE_SIZE)) {
 			len = strlen(tmp);
+			if (len > buflen)
+				len = buflen;
 			if (copy_to_user(buffer, tmp, len))
 				len = -EFAULT;
 			goto out;

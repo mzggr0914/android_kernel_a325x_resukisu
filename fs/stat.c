@@ -34,7 +34,13 @@
  * operation is supplied.
  */
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-extern void susfs_sus_kstat_spoof_generic_fillattr(struct inode *inode, struct kstat *stat);
+extern bool susfs_is_inode_sus_kstat(struct inode *inode, bool *out_is_fuse);
+extern void susfs_sus_kstat_spoof_generic_fillattr(struct inode *inode, struct kstat *stat, u32 result_mask);
+#endif
+
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_is_init_rc_hook_enabled;
+extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
 #endif
 
 void generic_fillattr(struct inode *inode, struct kstat *stat)
@@ -52,10 +58,6 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
 	stat->ctime = inode->i_ctime;
 	stat->blksize = i_blocksize(inode);
 	stat->blocks = inode->i_blocks;
-#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-	susfs_sus_kstat_spoof_generic_fillattr(inode, stat);
-#endif
-
 	if (IS_NOATIME(inode))
 		stat->result_mask &= ~STATX_ATIME;
 	if (IS_AUTOMOUNT(inode))
@@ -85,21 +87,41 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
 	stat->result_mask |= STATX_BASIC_STATS;
 	request_mask &= STATX_ALL;
 	query_flags &= KSTAT_QUERY_FLAGS;
-	if (inode->i_op->getattr)
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-	{
-		int err = inode->i_op->getattr(path, stat, request_mask,
-					    query_flags);
-		if (!err)
-			susfs_sus_kstat_spoof_generic_fillattr(inode, stat);
-		return err;
+	if (susfs_is_current_app_uid()) {
+		bool is_fuse = false;
+
+		if (susfs_is_inode_sus_kstat(inode, &is_fuse)) {
+			if (!is_fuse)
+				stat->result_mask |= STATX_SUS_KSTAT;
+			else
+				stat->result_mask |= STATX_SUS_KSTAT_FUSE;
+		}
 	}
-#else
-		return inode->i_op->getattr(path, stat, request_mask,
-					    query_flags);
 #endif
 
+	if (inode->i_op->getattr) {
+		int err = inode->i_op->getattr(path, stat, request_mask, query_flags);
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+		if (!err) {
+			if (stat->result_mask & STATX_SUS_KSTAT)
+				susfs_sus_kstat_spoof_generic_fillattr(inode, stat, STATX_SUS_KSTAT);
+			else if (stat->result_mask & STATX_SUS_KSTAT_FUSE)
+				susfs_sus_kstat_spoof_generic_fillattr(inode, stat, STATX_SUS_KSTAT_FUSE);
+			stat->result_mask &= ~(STATX_SUS_KSTAT | STATX_SUS_KSTAT_FUSE);
+		}
+#endif
+		return err;
+	}
+
 	generic_fillattr(inode, stat);
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	if (stat->result_mask & STATX_SUS_KSTAT)
+		susfs_sus_kstat_spoof_generic_fillattr(inode, stat, STATX_SUS_KSTAT);
+	else if (stat->result_mask & STATX_SUS_KSTAT_FUSE)
+		susfs_sus_kstat_spoof_generic_fillattr(inode, stat, STATX_SUS_KSTAT_FUSE);
+	stat->result_mask &= ~(STATX_SUS_KSTAT | STATX_SUS_KSTAT_FUSE);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(vfs_getattr_nosec);
@@ -162,6 +184,10 @@ int vfs_statx_fd(unsigned int fd, struct kstat *stat,
 	if (f.file) {
 		error = vfs_getattr(&f.file->f_path, stat,
 				    request_mask, query_flags);
+#ifdef CONFIG_KSU_SUSFS
+		if (!error && static_branch_unlikely(&ksu_is_init_rc_hook_enabled))
+			ksu_handle_vfs_fstat(fd, &stat->size);
+#endif
 		fdput(f);
 	}
 	return error;
@@ -417,20 +443,13 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 	return cp_new_stat(&stat, statbuf);
 }
 #endif
-#ifdef CONFIG_KSU_SUSFS
-extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
-#endif
 SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
 {
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
 
-	if (!error) {
-#ifdef CONFIG_KSU_SUSFS
-		ksu_handle_vfs_fstat(fd, &stat.size);
-#endif
+	if (!error)
 		error = cp_new_stat(&stat, statbuf);
-	}
 	return error;
 }
 
@@ -548,12 +567,8 @@ SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
 
-	if (!error) {
-#ifdef CONFIG_KSU_SUSFS
-		ksu_handle_vfs_fstat((int)fd, &stat.size);
-#endif
+	if (!error)
 		error = cp_new_stat64(&stat, statbuf);
-	}
 	return error;
 }
 

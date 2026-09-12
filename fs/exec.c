@@ -62,6 +62,9 @@
 #include <linux/oom.h>
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/susfs_def.h>
+#endif
 #include <linux/task_integrity.h>
 
 #include <linux/uaccess.h>
@@ -1902,6 +1905,16 @@ static int exec_binprm(struct linux_binprm *bprm)
 /*
  * sys_execve() executes a new program.
  */
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_su_compat_enabled;
+extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
+			       void *argv, void *envp, int *flags);
+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+				        void *argv, void *envp, int *flags);
+extern int ksu_handle_post_execveat_sucompat(int *fd, struct filename **filename_ptr,
+				             void *argv, void *envp, int *flags, int *retval);
+#endif
 static int __do_execve_file(int fd, struct filename *filename,
 			    struct user_arg_ptr argv,
 			    struct user_arg_ptr envp,
@@ -1911,9 +1924,23 @@ static int __do_execve_file(int fd, struct filename *filename,
 	struct linux_binprm *bprm;
 	struct files_struct *displaced;
 	int retval;
+#ifdef CONFIG_KSU_SUSFS
+	bool ksu_is_su_session = false;
+#endif
 
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
+
+#ifdef CONFIG_KSU_SUSFS
+	/* do_execve_file() is used by kernel usermode helpers with filename == NULL. */
+	if (filename && !susfs_is_current_proc_no_su() &&
+	    static_branch_likely(&ksu_su_compat_enabled)) {
+		if (static_branch_unlikely(&susfs_is_sdcard_android_data_not_decrypted))
+			ksu_is_su_session = !ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+		else
+			ksu_is_su_session = !ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
+	}
+#endif
 
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from
@@ -2031,6 +2058,12 @@ static int __do_execve_file(int fd, struct filename *filename,
 	if (retval < 0)
 		goto out;
 
+#ifdef CONFIG_KSU_SUSFS
+	/* Install the scoped KSU session FD only after a successful su exec. */
+	if (unlikely(ksu_is_su_session))
+		(void)ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);
+#endif
+
 	/* execve succeeded */
 	current->fs->in_exec = 0;
 	current->in_execve = 0;
@@ -2083,22 +2116,12 @@ int do_execve_file(struct file *file, void *__argv, void *__envp)
 
 	return __do_execve_file(AT_FDCWD, NULL, argv, envp, 0, file);
 }
-#ifdef CONFIG_KSU
-__attribute__((hot))
-extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
-				void *argv, void *envp, int *flags);
-#endif
 int do_execve(struct filename *filename,
 	const char __user *const __user *__argv,
 	const char __user *const __user *__envp)
 {
 	struct user_arg_ptr argv = { .ptr.native = __argv };
 	struct user_arg_ptr envp = { .ptr.native = __envp };
-#ifdef CONFIG_KSU
-	int ksu_exec_fd = AT_FDCWD;
-	int ksu_exec_flags = 0;
-	ksu_handle_execveat(&ksu_exec_fd, &filename, &argv, &envp, &ksu_exec_flags);
-#endif
 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
 }
 
@@ -2126,11 +2149,6 @@ static int compat_do_execve(struct filename *filename,
 		.is_compat = true,
 		.ptr.compat = __envp,
 	};
-#ifdef CONFIG_KSU // 32-bit ksud and 32-on-64 support
-	int ksu_exec_fd = AT_FDCWD;
-	int ksu_exec_flags = 0;
-	ksu_handle_execveat(&ksu_exec_fd, &filename, &argv, &envp, &ksu_exec_flags);
-#endif	
 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
 }
 
