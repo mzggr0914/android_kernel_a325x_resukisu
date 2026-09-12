@@ -6,6 +6,7 @@
 #include <linux/fdtable.h>
 #include <linux/namei.h>
 #include <linux/pid.h>
+#include <linux/ptrace.h>
 #include <linux/security.h>
 #include <linux/file.h>
 #include <linux/seq_file.h>
@@ -155,8 +156,30 @@ out:
 	return 0;
 }
 
+static int proc_fdinfo_access_allowed(struct inode *inode)
+{
+	bool allowed = false;
+	struct task_struct *task = get_proc_task(inode);
+
+	if (!task)
+		return -ESRCH;
+
+	allowed = ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS);
+	put_task_struct(task);
+
+	if (!allowed)
+		return -EACCES;
+
+	return 0;
+}
+
 static int seq_fdinfo_open(struct inode *inode, struct file *file)
 {
+	int ret = proc_fdinfo_access_allowed(inode);
+
+	if (ret)
+		return ret;
+
 	return single_open(file, seq_show, inode);
 }
 
@@ -398,7 +421,7 @@ proc_fdinfo_instantiate(struct inode *dir, struct dentry *dentry,
 	struct proc_inode *ei;
 	struct inode *inode;
 
-	inode = proc_pid_make_inode(dir->i_sb, task, S_IFREG | S_IRUSR);
+	inode = proc_pid_make_inode(dir->i_sb, task, S_IFREG | S_IRUGO);
 	if (!inode)
 		goto out;
 
@@ -434,7 +457,13 @@ const struct inode_operations proc_fdinfo_inode_operations = {
 	.setattr	= proc_setattr,
 };
 
+static int proc_open_fdinfo(struct inode *inode, struct file *file)
+{
+	return proc_fdinfo_access_allowed(inode);
+}
+
 const struct file_operations proc_fdinfo_operations = {
+	.open		= proc_open_fdinfo,
 	.read		= generic_read_dir,
 	.iterate_shared	= proc_readfdinfo,
 	.llseek		= generic_file_llseek,
