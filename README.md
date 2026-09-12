@@ -41,7 +41,7 @@ Other SM-A325 regional variants may be compatible because they share the same ba
 - SUSFS runtime logging disabled for release builds
 - AnyKernel3 installation package
 
-ReSukiSU 35119 is the last on-device boot-tested baseline on the SM-A325N. The current ReSukiSU 35136 tree includes the newer post-exec/SU-session compatibility fixes and the refreshed SUSFS v2.3.0 non-GKI port; it has been build-verified and still requires final on-device boot validation. NoMount v2.0.0 and its companion module were previously verified on-device.
+ReSukiSU 35136 with the refreshed SUSFS v2.3.0 non-GKI port has been boot-tested on the SM-A325N. ReSukiSU Manager reports normal operation, including the post-exec/SU-session compatibility path that fixes the 35127-era boot hang. NoMount v2.0.0 and its companion module were also previously verified on-device.
 
 ## Important Notice
 

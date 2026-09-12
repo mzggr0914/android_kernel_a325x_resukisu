@@ -41,7 +41,7 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 - 릴리스 빌드에서 SUSFS 런타임 로그 비활성화
 - AnyKernel3 설치 패키지
 
-ReSukiSU 35119는 현재 SM-A325N에서 마지막으로 실기기 부팅이 확인된 기준 버전입니다. 현재 ReSukiSU 35136 트리에는 최신 post-exec/SU-session 호환성 수정과 갱신된 SUSFS v2.3.0 Non-GKI 포트가 포함되어 있으며 빌드는 검증되었지만 최종 실기기 부팅 검증이 필요합니다. NoMount v2.0.0과 동반 모듈은 이전 실기기 테스트에서 정상 동작을 확인했습니다.
+갱신된 SUSFS v2.3.0 Non-GKI 포트를 포함한 ReSukiSU 35136은 SM-A325N에서 실기기 부팅 검증을 완료했습니다. ReSukiSU Manager에서도 정상 동작을 확인했으며, 35127 계열의 부트 멈춤을 일으키던 post-exec/SU-session 호환 경로가 수정된 상태입니다. NoMount v2.0.0과 동반 모듈도 이전 실기기 테스트에서 정상 동작을 확인했습니다.
 
 ## 중요 안내
 
