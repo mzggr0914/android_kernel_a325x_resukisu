@@ -22,8 +22,8 @@ Samsung MT6768 커널 소스를 기반으로 **ReSukiSU**와 **SUSFS**를 통합
 
 <!-- AUTO:RESUKISU:START -->
 - ReSukiSU `v4.2.0-rc2`
-- ReSukiSU 커널 버전 코드 `35159`
-- ReSukiSU 커밋 [`90b4a4c7`](https://github.com/ReSukiSU/ReSukiSU/commit/90b4a4c70f70c835b01c2be6deac58ee3c0cb4c2)
+- ReSukiSU 커널 버전 코드 `35160`
+- ReSukiSU 커밋 [`5cfdd725`](https://github.com/ReSukiSU/ReSukiSU/commit/5cfdd725aa92f134388fc779a6377af0247caa1e)
 <!-- AUTO:RESUKISU:END -->
 - SUSFS `v2.3.0`
 - KernelSU 멀티 매니저 지원
